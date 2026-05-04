@@ -1,0 +1,205 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+
+<style>
+.container-box {
+    background:#1e293b;
+    padding:25px;
+    border-radius:15px;
+    box-shadow:0px 0px 20px rgba(0,0,0,0.5);
+    color:white;
+    margin-top:20px;
+}
+
+.result-card {
+    margin-top:20px;
+    padding:20px;
+    border-radius:12px;
+    text-align:center;
+}
+
+.real { background:#16a34a; }
+.fake { background:#dc2626; }
+
+.progress-bg {
+    background:#334155;
+    border-radius:10px;
+    margin-top:10px;
+}
+
+.progress-fill {
+    background:#22c55e;
+    height:10px;
+    border-radius:10px;
+}
+
+/* IMPORTANT */
+#video-container {
+    position: relative;
+    display: inline-block;
+}
+
+#face-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+</style>
+
+<div class="container">
+
+  <div class="logo text-center mb-3">
+    <img src="{% static 'images/logo1.png'%}" alt="Logo">
+  </div>
+
+  {% if no_faces %}
+    <div class="alert alert-danger text-center">
+      ❌ No faces detected. Cannot process the video.
+    </div>
+
+  {% else %}
+
+  <div class="container-box">
+
+    <!-- VIDEO -->
+    <div class="text-center" id="video-container">
+      <video height="320" width="640" id="predict-media" controls style="border-radius:10px;"></video>
+    </div>
+
+    <!-- RESULT -->
+    <div class="result-card {% if output == 'REAL' %}real{% else %}fake{% endif %}">
+
+      <h3>Result: {{ output }}</h3>
+
+      <h4>Confidence: {{ confidence|default:0 }}%</h4>
+
+      <div class="progress-bg">
+        <div class="progress-fill" style="width: {{ confidence|default:0 }}%;"></div>
+      </div>
+
+      <p style="margin-top:10px;">
+        {% if output == 'FAKE' %}
+        ⚠️ This video shows strong signs of manipulation.
+        {% else %}
+        ✅ This video appears authentic.
+        {% endif %}
+      </p>
+
+    </div>
+
+    <!-- GRAPH -->
+    <div style="margin-top:30px;">
+      <h4 class="text-center">Confidence Visualization</h4>
+      <canvas id="confidenceChart"></canvas>
+    </div>
+
+  </div>
+
+  {% endif %}
+
+</div>
+
+{% endblock %}
+
+{% block js_cripts %}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{% static 'js/face-api.min.js' %}"></script>
+
+<script>
+  const video = document.getElementById("predict-media");
+  video.src = "{{MEDIA_URL}}{{original_video}}";
+
+  // GRAPH
+  const confidence = {{ confidence|default:0 }};
+  const ctx = document.getElementById('confidenceChart');
+
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['Confidence'],
+      datasets: [{
+        label: 'Model Confidence (%)',
+        data: [confidence],
+      }]
+    },
+    options: {
+      scales: {
+        y: {
+          beginAtZero: true,
+          max: 100
+        }
+      }
+    }
+  });
+
+  // FACE DETECTION FIXED PERFECTLY
+  $(document).ready(function () {
+
+    Promise.all([
+      faceapi.nets.ssdMobilenetv1.loadFromUri('/static/json'),
+      faceapi.nets.tinyFaceDetector.loadFromUri("/static/json")
+    ]);
+
+    let detectionInterval;
+
+    video.addEventListener("playing", () => {
+
+      let canvas = document.getElementById("face-canvas");
+
+      if (!canvas) {
+        canvas = faceapi.createCanvasFromMedia(video);
+        canvas.id = "face-canvas";
+
+        const container = document.getElementById("video-container");
+        container.appendChild(canvas);
+
+        canvas.width = video.width;
+        canvas.height = video.height;
+      }
+
+      const displaySize = {
+        width: video.width,
+        height: video.height
+      };
+
+      faceapi.matchDimensions(canvas, displaySize);
+
+      detectionInterval = setInterval(async () => {
+
+        const detections = await faceapi.detectAllFaces(video);
+        const resizedDetections = faceapi.resizeResults(detections, displaySize);
+
+        const ctx = canvas.getContext("2d");
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        resizedDetections.forEach((det) => {
+
+          let resultText = '{{output}}';
+          let conf = '{{confidence}}';
+
+          let drawOptions = {
+            label: resultText + " " + conf + "%"
+          };
+
+          if (resultText === 'REAL') drawOptions.boxColor = "#0f0";
+          else drawOptions.boxColor = "#f00";
+
+          const drawBox = new faceapi.draw.DrawBox(det.box, drawOptions);
+          drawBox.draw(canvas);
+        });
+
+      }, 200);
+
+    });
+
+    video.addEventListener("pause", () => {
+      clearInterval(detectionInterval);
+    });
+
+  });
+</script>
+
+{% endblock %}

@@ -1,0 +1,168 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+
+<style>
+.bg {
+    background: #0f172a;
+    min-height: 100vh;
+}
+
+.card-box {
+    background: #1e293b;
+    padding: 25px;
+    border-radius: 15px;
+    box-shadow: 0px 0px 25px rgba(0,0,0,0.5);
+    color: white;
+}
+
+.result-box {
+    margin-top: 20px;
+    padding: 15px;
+    border-radius: 12px;
+    text-align: center;
+    color: white;
+}
+
+.fake {
+    background: #dc2626;
+}
+
+.real {
+    background: #16a34a;
+}
+
+.progress-bar-bg {
+    background: #334155;
+    border-radius: 10px;
+    margin-top: 10px;
+}
+
+.progress-bar-fill {
+    background: #22c55e;
+    padding: 6px;
+    border-radius: 10px;
+}
+</style>
+
+<div class="bg">
+<div class="container">
+    
+    <div class="row align-items-center justify-content-center">
+        <div class="col-12 my-auto">
+
+            <!-- LOGO -->
+            <div class="logo text-center mb-3">
+                <img src="{% static 'images/logo1.png'%}" alt="Logo">
+            </div>
+
+            <div class="width-400 card-box">
+
+                <!-- VIDEO PREVIEW -->
+                <video width="100%" controls id="videos" style="border-radius:10px;">
+                    <source src="" id="video_source">
+                    Your browser does not support HTML5 video.
+                </video>
+
+                <!-- FORM -->
+                <form method="POST" enctype="multipart/form-data" id="video-upload"
+                    class="text-center mt-3">
+                    {% csrf_token %}
+
+                    <div class="form-group">
+                        {{form.upload_video_file}}
+                    </div>
+
+                    <!-- SLIDER -->
+                    <div class="form-group mt-3">
+                        <label>
+                            {{form.sequence_length.label}}: 
+                            <span id="slider-value"></span>
+                        </label>
+
+                        <input type="number" hidden 
+                            id="{{form.sequence_length.id_for_label}}"
+                            name="{{form.sequence_length.name}}">
+
+                        <div id='slider'></div>
+                    </div>
+
+                    <!-- BUTTON -->
+                    <button type="submit"
+                        class="btn btn-success mt-3 btn-block">
+                        Analyze Video 🚀
+                    </button>
+                </form>
+
+                <!-- 🔥 RESULT -->
+                {% if prediction %}
+                <div class="result-box {% if prediction == 'FAKE' %}fake{% else %}real{% endif %}">
+
+                    <h3>Result: {{ prediction }}</h3>
+
+                    <p style="font-size:18px;">
+                        Confidence: <b>{{ confidence }}%</b>
+                    </p>
+
+                    <!-- PROGRESS BAR -->
+                    <div class="progress-bar-bg">
+                       <div class="progress-bar-fill" style="width: {{ confidence|default:0 }}%;"></div>
+                    </div>
+
+                    <!-- SUMMARY -->
+                    <p style="margin-top:10px;">
+                        {% if prediction == 'FAKE' %}
+                        ⚠️ This video shows signs of manipulation and is likely a deepfake.
+                        {% else %}
+                        ✅ This video appears authentic with no major signs of tampering.
+                        {% endif %}
+                    </p>
+
+                </div>
+                {% endif %}
+
+            </div>
+
+        </div>
+    </div>
+
+</div>
+</div>
+
+{% endblock %}
+
+{% block js_cripts %}
+
+<script src="{% static 'js/script.js' %}"></script>
+
+<script>
+    // SLIDER
+    $(function () {
+        var sliderSequenceNumbers = [10,20,40,60,80,100];
+
+        $("#slider").slider({
+            value: 0,
+            min: 0,
+            max: sliderSequenceNumbers.length - 1,
+            slide: function (event, ui) {
+                $('#{{form.sequence_length.id_for_label}}').val(sliderSequenceNumbers[ui.value]);
+                $('#slider-value').html(sliderSequenceNumbers[ui.value]);
+            }
+        });
+
+        $('#{{form.sequence_length.id_for_label}}').val(sliderSequenceNumbers[0]);
+        $('#slider-value').html(sliderSequenceNumbers[0]);
+    });
+
+    // 🎥 VIDEO PREVIEW
+    document.querySelector('input[type="file"]').onchange = function(event) {
+        const file = event.target.files[0];
+        if (file) {
+            const url = URL.createObjectURL(file);
+            document.getElementById("videos").src = url;
+        }
+    };
+</script>
+
+{% endblock %}
